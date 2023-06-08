@@ -1,5 +1,4 @@
 import getpass
-import json
 import os
 from typing import List, Optional
 
@@ -23,36 +22,35 @@ class APIKeyValidators:
 
 
 class PineconeExport:
-    def __init__(self):
+    def __init__(self, index_name: str, batch_size: int = 1000):
         pinecone_keys = ["PINECONE_API_KEY", "PINECONE_ENVIRONMENT"]
         pinecone_api_keys = APIKeyValidators(pinecone_keys)
         self.api_key = pinecone_api_keys.get_key("PINECONE_API_KEY")
         self.environment = pinecone_api_keys.get_key("PINECONE_ENVIRONMENT")
+        self.batch_size = batch_size
         pinecone.init(api_key=self.api_key, environment=self.environment)
+        self.index = self.create_index(index_name)
 
     def create_index(self, index_name: str, dimension: Optional[int] = None):
         if index_name not in pinecone.list_indexes():
-            if not isinstance(dimension, int) or dimension is None:
-                raise ValueError("Dimension must be an integer")
-            pinecone.create_index(index_name, dimension=dimension, metric="cosine")
-        return pinecone.Index(index_name=index_name)
+            raise ValueError(f"Index {index_name} does not exist in Pinecone")
+        index = pinecone.Index(index_name=index_name)
+        dimension = index.describe_index_stats()["dimension"]
+        if not isinstance(dimension, int) or dimension is None:
+            raise ValueError("Dimension must be an integer")
+        return index
 
-    def fetch_vectors(self, index, ids, write_to_file: bool = True):
+    def fetch_vectors(self, ids: List[str]):
         """
         Fetch vectors from Pinecone and write them to a local file
         """
         fetched_vectors = {}
         # Fetch vectors in batches of 1000 as recommended by Pinecone
-        for i in range(0, len(ids), 1000):
-            i_end = min(i + 1000, len(ids))
+        for i in range(0, len(ids), self.batch_size):
+            i_end = min(i + self.batch_size, len(ids))
             batch_ids = ids[i:i_end]
-            response = index.fetch(ids=batch_ids)
+            response = self.index.fetch(ids=batch_ids)
             fetched_vectors.update(response["vectors"])
-
-        # # Write vectors to a local JSON file
-        if write_to_file:
-            with open("fetched_vectors.json", "w") as f:
-                json.dump(fetched_vectors, f)
 
         return fetched_vectors
 
@@ -68,14 +66,16 @@ class QdrantImport:
             qdrant_api_keys = APIKeyValidators(["QDRANT_URL", "QDRANT_API_KEY"])
             self.qdrant_url = qdrant_api_keys.get_key("QDRANT_URL")
             self.qdrant_api_key = qdrant_api_keys.get_key("QDRANT_API_KEY")
+            self.qdrant_client = QdrantClient(
+                self.qdrant_url,
+                prefer_grpc=True,
+                api_key=self.qdrant_api_key,
+            )
+        elif mode == QdrantMode.local:
+            self.qdrant_client = QdrantClient(QdrantMode.local)
         self.batch_size = batch_size
-        self.qdrant_client = QdrantClient(
-            self.qdrant_url,
-            prefer_grpc=True,
-            api_key=self.qdrant_api_key,
-        )
 
-    def recreate_collection(
+    def create_collection(
         self, index_name: str, vector_dimension: int, distance=Distance.COSINE
     ):
         self.qdrant_client.recreate_collection(
@@ -85,7 +85,7 @@ class QdrantImport:
             ),
         )
 
-    def upsert_vectors(self, index_name: str, ids: List[str], index):
+    def upsert_vectors(self, index_name: str, ids: List[str], index: pinecone.Index):
         for i in range(0, len(ids), self.batch_size):
             i_end = min(i + self.batch_size, len(ids))
             batch_ids = ids[i:i_end]
@@ -104,5 +104,3 @@ class QdrantImport:
 
             if operation_info.status != UpdateStatus.COMPLETED:
                 raise Exception("Upsert failed")
-
-        print("Upsert completed")
