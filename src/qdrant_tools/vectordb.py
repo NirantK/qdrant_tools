@@ -30,6 +30,13 @@ class PineconeExport:
         self.environment = pinecone_api_keys.get_key("PINECONE_ENVIRONMENT")
         pinecone.init(api_key=self.api_key, environment=self.environment)
 
+    def create_index(self, index_name: str, dimension: Optional[int] = None):
+        if index_name not in pinecone.list_indexes():
+            if not isinstance(dimension, int) or dimension is None:
+                raise ValueError("Dimension must be an integer")
+            pinecone.create_index(index_name, dimension=dimension, metric="cosine")
+        return pinecone.Index(index_name=index_name)
+
     def fetch_vectors(self, index, ids, write_to_file: bool = True):
         """
         Fetch vectors from Pinecone and write them to a local file
