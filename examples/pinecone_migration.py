@@ -1,5 +1,4 @@
 from qdrant_tools.vectordb import PineconeExport, QdrantImport, QdrantMode
-from rich import print
 
 index_name = "hindi-search"  # Existing Pinecone index name
 
