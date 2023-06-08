@@ -8,7 +8,8 @@ from qdrant_client.http import models
 from qdrant_client.http.models import Distance, PointStruct, UpdateStatus
 
 
-class APIKeys:
+class APIKeyValidators:
+    # Add .env support
     def __init__(self, keys: List[str]):
         self.keys = {key: os.getenv(key) for key in keys}
 
@@ -21,9 +22,11 @@ class APIKeys:
 
 
 class PineconeExport:
-    def __init__(self, api_keys: APIKeys):
-        self.api_key = api_keys.get_key("PINECONE_API_KEY")
-        self.environment = api_keys.get_key("PINECONE_ENVIRONMENT")
+    def __init__(self, api_keys: APIKeyValidators):
+        pinecone_keys = ["PINECONE_API_KEY", "PINECONE_ENVIRONMENT"]
+        pinecone_api_keys = APIKeyValidators(pinecone_keys)
+        self.api_key = pinecone_api_keys.get_key("PINECONE_API_KEY")
+        self.environment = pinecone_api_keys.get_key("PINECONE_ENVIRONMENT")
         pinecone.init(api_key=self.api_key, environment=self.environment)
 
     def create_index(self, index_name: str, dimension: Optional[int] = None):
@@ -43,8 +46,9 @@ class PineconeExport:
             fetched_vectors.update(response["vectors"])
 
         # # Write vectors to a local JSON file
-        # with open("fetched_vectors.json", "w") as f:
-        #     json.dump(fetched_vectors, f)
+        if write_to_file:
+            with open("fetched_vectors.json", "w") as f:
+                json.dump(fetched_vectors, f)
 
         return fetched_vectors
 
