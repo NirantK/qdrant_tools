@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "qdrant_tools"
+version = "0.0.1"
+description = "Building tools for Qdrant"
+authors = []
+license = "MIT"
+readme = "README.md"
+repository = "https://www.github.com/NirantK/qdrant_tools"
+
+[tool.ruff]
+select = [
+  "E",  # pycodestyle
+  "F",  # pyflakes
+  "I",  # isort
+]
+exclude = [
+  "tests/integration_tests/examples/non-utf8-encoding.py",
+]

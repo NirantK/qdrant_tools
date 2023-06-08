@@ -1,0 +1,2 @@
+pinecone-client==2.2.1
+qdrant-client==1.2.0
