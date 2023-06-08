@@ -22,7 +22,7 @@ class APIKeyValidators:
 
 
 class PineconeExport:
-    def __init__(self, api_keys: APIKeyValidators):
+    def __init__(self):
         pinecone_keys = ["PINECONE_API_KEY", "PINECONE_ENVIRONMENT"]
         pinecone_api_keys = APIKeyValidators(pinecone_keys)
         self.api_key = pinecone_api_keys.get_key("PINECONE_API_KEY")
@@ -36,7 +36,10 @@ class PineconeExport:
             pinecone.create_index(index_name, dimension=dimension, metric="cosine")
         return pinecone.Index(index_name=index_name)
 
-    def fetch_vectors(self, index, ids):
+    def fetch_vectors(self, index, ids, write_to_file: bool = True):
+        """
+        Fetch vectors from Pinecone and write them to a local file
+        """
         fetched_vectors = {}
         # Fetch vectors in batches of 1000 as recommended by Pinecone
         for i in range(0, len(ids), 1000):
@@ -82,8 +85,8 @@ class QdrantImport:
         )
 
     def upsert_vectors(self, index_name: str, ids: List[str], index):
-        for i in range(0, len(ids), 1000):
-            i_end = min(i + 1000, len(ids))
+        for i in range(0, len(ids), self.batch_size):
+            i_end = min(i + self.batch_size, len(ids))
             batch_ids = ids[i:i_end]
             fetched_vectors = index.fetch(ids=batch_ids)
             qdrant_vectors = [
