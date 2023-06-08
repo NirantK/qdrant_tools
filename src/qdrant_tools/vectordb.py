@@ -53,10 +53,18 @@ class PineconeExport:
         return fetched_vectors
 
 
+class QdrantMode:
+    local = ":memory:"
+    cloud = "cloud"
+
+
 class QdrantImport:
-    def __init__(self, api_keys: APIKeys):
-        self.qdrant_url = api_keys.get_key("QDRANT_URL")
-        self.qdrant_api_key = api_keys.get_key("QDRANT_API_KEY")
+    def __init__(self, mode: QdrantMode = QdrantMode.local, batch_size: int = 1000):
+        if mode == QdrantMode.cloud:
+            qdrant_api_keys = APIKeyValidators(["QDRANT_URL", "QDRANT_API_KEY"])
+            self.qdrant_url = qdrant_api_keys.get_key("QDRANT_URL")
+            self.qdrant_api_key = qdrant_api_keys.get_key("QDRANT_API_KEY")
+        self.batch_size = batch_size
         self.qdrant_client = QdrantClient(
             self.qdrant_url,
             prefer_grpc=True,
