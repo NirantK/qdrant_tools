@@ -20,11 +20,8 @@ source_index = pinecone_export.index
 
 # Fetch all vector ids from Pinecone
 
-vector_ids = ["1", "2", "3", "4", "5"] # Example vector ids, list of strings
-
-# Fetch vectors from Pinecone and write them to a local file
-
-points = pinecone_export.fetch_vectors(vector_ids)
+vector_ids = ["1", "2", "3", "4", "5"] # Example vector ids, list of strings -- this is the main input for the replication
+points = pinecone_export.fetch_vectors(vector_ids) # Fetch vectors from Pinecone
 
 # Init Qdrant
 
@@ -35,6 +32,8 @@ qdrant = QdrantImport(mode=QdrantMode.local)
 qdrant.create_collection(index_name, vector_dimension)
 qdrant.upsert_vectors(index_name, vector_ids, source_index) # source_index is a pinecone index object
 
+
+# Testing if it works!
 qdrant.qdrant_client.search(
     collection_name=index_name,
     query_vector= # query_vector
