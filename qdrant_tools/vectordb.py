@@ -123,18 +123,14 @@ class QdrantImport:
             vector_dimension (int): _description_
             distance (_type_, optional): _description_. Defaults to Distance.COSINE.
         """
-        vector_dimension = self.source_index.describe_index_stats()[
-            "dimension"
-        ]  # Get dimension from existing index
-
         self.qdrant_client.recreate_collection(
             collection_name=self.index_name,
             vectors_config=models.VectorParams(
-                size=vector_dimension, distance=distance
+                size=self.index_dimension, distance=distance
             ),
         )
 
-    def upsert_vectors(self, ids: List[str]):
+    def upsert_vectors(self, ids: List[str], point_information: dict):
         """
         Upsert vectors to Qdrant
 
@@ -149,11 +145,11 @@ class QdrantImport:
         for i in range(0, len(ids), self.batch_size):
             i_end = min(i + self.batch_size, len(ids))
             batch_ids = ids[i:i_end]
-            fetched_vectors = self.source_index.fetch(ids=batch_ids)
 
+            points = point_information["points"]
             point_ids = []
             # Convert vector ids to int and add text payload
-            for idx, vec in enumerate(fetched_vectors["vectors"].values()):
+            for idx, vec in enumerate(points["vectors"].values()):
                 id = idx + i if not str(vec["id"]).isdigit() else int(vec["id"])
                 point_ids.append(
                     PointStruct(
