@@ -70,9 +70,9 @@ class PineconeExport:
             raise ValueError("Dimension must be an integer")
         return index
 
-    def fetch_vectors(self, ids: List[str]):
+    def fetch_vectors(self, ids: List[str]) -> dict[dict, int, str]:
         """
-        Fetch vectors from Pinecone and write them to a local file
+        Fetch vectors from Pinecone into a Python object
         """
         fetched_vectors = {}
         # Fetch vectors in batches of 1000 as recommended by Pinecone
@@ -82,7 +82,11 @@ class PineconeExport:
             response = self.index.fetch(ids=batch_ids)
             fetched_vectors.update(response["vectors"])
 
-        return fetched_vectors
+        return {
+            "points": fetched_vectors,
+            "dimension": self.index.describe_index_stats()["dimension"],
+            "name": self.index.name,
+        }
 
 
 class QdrantMode:
@@ -97,23 +101,17 @@ class QdrantImport:
 
     def __init__(
         self,
-        source_index: pinecone.Index,
-        mode: QdrantMode = QdrantMode.local,
+        index_name: str,
+        index_dimension: int,
+        qdrant_client: Optional[QdrantClient] = None,
         batch_size: int = 1000,
     ):
-        self.source_index = source_index
-        self.index_name = source_index.name
-        if mode == QdrantMode.cloud:
-            qdrant_api_keys = APIKeyValidators(["QDRANT_URL", "QDRANT_API_KEY"])
-            self.qdrant_url = qdrant_api_keys.get_key("QDRANT_URL")
-            self.qdrant_api_key = qdrant_api_keys.get_key("QDRANT_API_KEY")
-            self.qdrant_client = QdrantClient(
-                self.qdrant_url,
-                prefer_grpc=True,
-                api_key=self.qdrant_api_key,
-            )
-        elif mode == QdrantMode.local:
+        self.index_name = index_name
+        self.index_dimension = index_dimension
+        if qdrant_client is None:
             self.qdrant_client = QdrantClient(QdrantMode.local)
+        else:
+            self.qdrant_client = qdrant_client
         self.batch_size = batch_size
 
     def create_collection(self, distance=Distance.COSINE):
