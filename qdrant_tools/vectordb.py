@@ -128,31 +128,38 @@ class QdrantImport(VectorDatabaseHandler):
         Raises:
             InterruptedError: If the upsert operation is not completed successfully.
         """
-        for i in range(0, len(ids), self.batch_size):
-            i_end = min(i + self.batch_size, len(ids))
-            batch_ids = ids[i:i_end]
+        self.process_in_batches(
+            ids, lambda batch_ids: self.upsert_batch(batch_ids, point_information)
+        )
 
-            points = point_information["points"]
-            point_ids = []
-            for idx, vec in enumerate(points["vectors"].values()):
-                id = idx if not str(vec["id"]).isdigit() else int(vec["id"])
-                # Create a PointStruct for each vector
-                point_ids.append(
-                    PointStruct(
-                        id=id,
-                        vector=vec["values"],
-                        payload={
-                            "text": vec["metadata"]["text"],
-                            "original_id": vec["id"],
-                        },
-                    )
-                )
+    def upsert_batch(self, batch_ids: List[str], point_information: dict):
+        """
+        Helper function for upsert_vectors to process each batch of ids.
 
-            # Perform the upsert operation
-            operation_info = self.qdrant_client.upsert(
-                collection_name=self.index_name, wait=True, points=point_ids
+        Args:
+            batch_ids (List[str]): The list of vector ids in the current batch.
+            point_information (dict): Dictionary containing information about the vectors.
+        """
+        points = {id: point_information["points"][id] for id in batch_ids}
+        point_ids = []
+        for idx, vec in enumerate(points.values()):
+            point_id = idx if not str(vec["id"]).isdigit() else int(vec["id"])
+            # Create a PointStruct for each vector
+            # Use 'text' if present in 'metadata', else use the entire 'metadata'
+            payload = (
+                vec["metadata"]
+                if "text" not in vec["metadata"]
+                else {"text": vec["metadata"]["text"], "metadata": vec["metadata"]}
+            )
+            point_ids.append(
+                PointStruct(id=point_id, vector=vec["values"], payload=payload)
             )
 
-            # Check if the operation was successful
-            if operation_info.status != UpdateStatus.COMPLETED:
-                raise InterruptedError("Upsert failed")
+        # Perform the upsert operation
+        operation_info = self.qdrant_client.upsert(
+            collection_name=self.index_name, wait=True, points=point_ids
+        )
+
+        # Check if the operation was successful
+        if operation_info.status != UpdateStatus.COMPLETED:
+            raise InterruptedError("Upsert failed")
