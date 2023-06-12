@@ -9,19 +9,35 @@ from qdrant_client.http.models import Distance, PointStruct, UpdateStatus
 
 
 class APIKeyValidators:
+    """
+    Validate API keys and store them in memory
+
+    Returns:
+       key (str): API key
+    """
+
     # Add .env support
     def __init__(self, keys: List[str]):
         self.keys = {key: os.getenv(key) for key in keys}
 
     def get_key(self, key: str):
+        """
+        Get API key from environment variables or prompt user for input
+
+        Args:
+            key (str): _description_
+
+        Returns:
+            _type_: _description_
+        """
         if self.keys[key] is None:
-            self.keys[key] = getpass.getpass(
-                prompt=f"Enter your {key.replace('_', ' ')}: "
-            )
+            self.keys[key] = getpass.getpass(prompt=f"Enter your {key}: ")
         return self.keys[key]
 
 
 class PineconeExport:
+    """Export vectors from Pinecone to an in-memory Python object"""
+
     def __init__(self, index_name: str, batch_size: int = 1000):
         pinecone_keys = ["PINECONE_API_KEY", "PINECONE_ENVIRONMENT"]
         pinecone_api_keys = APIKeyValidators(pinecone_keys)
@@ -32,6 +48,20 @@ class PineconeExport:
         self.index = self.create_index(index_name)
 
     def create_index(self, index_name: str, dimension: Optional[int] = None):
+        """
+        Create a Pinecone index object
+
+        Args:
+            index_name (str): _description_
+            dimension (Optional[int], optional): _description_. Defaults to None.
+
+        Raises:
+            ValueError: _description_
+            ValueError: _description_
+
+        Returns:
+            _type_: _description_
+        """
         if index_name not in pinecone.list_indexes():
             raise ValueError(f"Index {index_name} does not exist in Pinecone")
         index = pinecone.Index(index_name=index_name)
@@ -56,11 +86,15 @@ class PineconeExport:
 
 
 class QdrantMode:
+    """Enum: Qdrant modes"""
+
     local = ":memory:"
     cloud = "cloud"
 
 
 class QdrantImport:
+    """Import vectors from any VectorDB to Qdrant"""
+
     def __init__(self, mode: QdrantMode = QdrantMode.local, batch_size: int = 1000):
         if mode == QdrantMode.cloud:
             qdrant_api_keys = APIKeyValidators(["QDRANT_URL", "QDRANT_API_KEY"])
@@ -78,6 +112,14 @@ class QdrantImport:
     def create_collection(
         self, index_name: str, vector_dimension: int, distance=Distance.COSINE
     ):
+        """
+        Create a new collection in Qdrant
+
+        Args:
+            index_name (str): _description_
+            vector_dimension (int): _description_
+            distance (_type_, optional): _description_. Defaults to Distance.COSINE.
+        """
         self.qdrant_client.recreate_collection(
             collection_name=index_name,
             vectors_config=models.VectorParams(
