@@ -85,22 +85,42 @@ class QdrantImport:
             ),
         )
 
-    def upsert_vectors(self, index_name: str, ids: List[str], index: pinecone.Index):
+    def upsert_vectors(self, ids: List[str], index: pinecone.Index):
+        """
+        Upsert vectors to Qdrant
+
+        Args:
+            ids (List[str]): _description_
+            index (pinecone.Index): _description_
+
+        Raises:
+            InterruptedError: Status check and raised when status is not completed
+        """
+
+        index_name = index.name
         for i in range(0, len(ids), self.batch_size):
             i_end = min(i + self.batch_size, len(ids))
             batch_ids = ids[i:i_end]
             fetched_vectors = index.fetch(ids=batch_ids)
-            qdrant_vectors = [
-                PointStruct(
-                    id=int(i["id"]),
-                    vector=i["values"],
-                    payload={"text": i["metadata"]["text"]},
+
+            point_ids = []
+            # Convert vector ids to int and add text payload
+            for idx, vec in enumerate(fetched_vectors["vectors"].values()):
+                id = idx + i if not str(vec["id"]).isdigit() else int(vec["id"])
+                point_ids.append(
+                    PointStruct(
+                        id=id,
+                        vector=vec["values"],
+                        payload={
+                            "text": vec["metadata"]["text"],
+                            "original_id": vec["id"],
+                        },
+                    )
                 )
-                for i in fetched_vectors["vectors"].values()
-            ]
+
             operation_info = self.qdrant_client.upsert(
-                collection_name=index_name, wait=True, points=qdrant_vectors
+                collection_name=index_name, wait=True, points=point_ids
             )
 
             if operation_info.status != UpdateStatus.COMPLETED:
-                raise Exception("Upsert failed")
+                raise InterruptedError("Upsert failed")
