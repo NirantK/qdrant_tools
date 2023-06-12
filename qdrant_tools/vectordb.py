@@ -35,10 +35,20 @@ class APIKeyValidators:
         return self.keys[key]
 
 
-class PineconeExport:
-    """Export vectors from Pinecone to an in-memory Python object"""
+class VectorDatabaseHandler:
+    def __init__(self, batch_size: int = 1000):
+        self.batch_size = batch_size
 
+    def process_in_batches(self, ids: List[str], processing_function):
+        for i in range(0, len(ids), self.batch_size):
+            i_end = min(i + self.batch_size, len(ids))
+            batch_ids = ids[i:i_end]
+            processing_function(batch_ids)
+
+
+class PineconeExport(VectorDatabaseHandler):
     def __init__(self, index_name: str, batch_size: int = 1000):
+        super().__init__(batch_size)
         pinecone_keys = ["PINECONE_API_KEY", "PINECONE_ENVIRONMENT"]
         pinecone_api_keys = APIKeyValidators(pinecone_keys)
         self.api_key = pinecone_api_keys.get_key("PINECONE_API_KEY")
@@ -46,6 +56,20 @@ class PineconeExport:
         self.batch_size = batch_size
         pinecone.init(api_key=self.api_key, environment=self.environment)
         self.index = self.create_index(index_name)
+
+    def fetch_vectors(self, ids: List[str]) -> dict:
+        fetched_vectors = {}
+        self.process_in_batches(
+            ids,
+            lambda batch_ids: fetched_vectors.update(
+                self.index.fetch(ids=batch_ids)["vectors"]
+            ),
+        )
+        return {
+            "points": fetched_vectors,
+            "dimension": self.index.describe_index_stats()["dimension"],
+            "name": self.index.name,
+        }
 
     def create_index(self, index_name: str, dimension: Optional[int] = None):
         """
