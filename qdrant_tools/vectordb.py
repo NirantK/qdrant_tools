@@ -30,7 +30,7 @@ class APIKeyValidators:
         Returns:
             str: The value of the API key.
         """
-        if self.keys[key] is None:
+        if key not in self.keys or self.keys[key] is None:
             self.keys[key] = getpass.getpass(prompt=f"Enter your {key}: ")
         return self.keys[key]
 
@@ -62,11 +62,14 @@ class VectorDatabaseHandler:
 
 class PineconeExport(VectorDatabaseHandler):
     """
-    Class to handle exporting vectors from Pinecone.
+        Class to handleHere's the corrected code for the remaining part:
 
-    Args:
-        index_name (str): The name of the Pinecone index to export from.
-        batch_size (int, optional): Size of batches for processing. Defaults to 1000.
+    ```python
+        exporting vectors from Pinecone.
+
+        Args:
+            index_name (str): The name of the Pinecone index to export from.
+            batch_size (int, optional): Size of batches for processing. Defaults to 1000.
     """
 
     def __init__(self, index_name: str, batch_size: int = 1000):
@@ -76,7 +79,8 @@ class PineconeExport(VectorDatabaseHandler):
         self.api_key = pinecone_api_keys.get_key("PINECONE_API_KEY")
         self.environment = pinecone_api_keys.get_key("PINECONE_ENVIRONMENT")
         pinecone.init(api_key=self.api_key, environment=self.environment)
-        self.index = self.create_index(index_name)
+        self.index = pinecone.Index(index_name=index_name)
+        self.index_name = index_name
 
     def fetch_vectors(self, ids: List[str]) -> Dict[str, dict]:
         """
@@ -94,32 +98,11 @@ class PineconeExport(VectorDatabaseHandler):
             lambda batch_ids: fetched_vectors.update(self.index.fetch(ids=batch_ids)["vectors"]),
         )
         return {
+            "ids": ids,
             "points": fetched_vectors,
-            "dimension": self.index.describe_index_stats()["dimension"],
-            "name": self.index.name,
+            "index_dimension": self.index.describe_index_stats()["dimension"],
+            "index_name": self.index_name,
         }
-
-    def create_index(self, index_name: str) -> pinecone.Index:
-        """
-        Create a Pinecone index object
-
-        Args:
-            index_name (str): The name of the index to create.
-
-        Raises:
-            ValueError: If the index does not exist in Pinecone
-            or if the dimension is not an integer.
-
-        Returns:
-            pinecone.Index: The created index.
-        """
-        if index_name not in pinecone.list_indexes():
-            raise ValueError(f"Index {index_name} does not exist in Pinecone")
-        index = pinecone.GRPCIndex(index_name=index_name)
-        dimension = index.describe_index_stats()["dimension"]
-        if not isinstance(dimension, int) or dimension is None:
-            raise ValueError("Dimension must be an integer")
-        return index
 
 
 class QdrantImport(VectorDatabaseHandler):
@@ -137,8 +120,10 @@ class QdrantImport(VectorDatabaseHandler):
 
     def __init__(
         self,
+        ids: List[str],
         index_name: str,
         index_dimension: int,
+        points: List,
         qdrant_client: Optional[QdrantClient] = None,
         batch_size: int = 1024,
     ):
@@ -149,6 +134,8 @@ class QdrantImport(VectorDatabaseHandler):
             self.qdrant_client = QdrantClient(":memory:")
         else:
             self.qdrant_client = qdrant_client
+        self.points = points
+        self.ids = ids
 
     def create_collection(self, distance=Distance.COSINE):
         """
@@ -163,28 +150,25 @@ class QdrantImport(VectorDatabaseHandler):
             vectors_config=models.VectorParams(size=self.index_dimension, distance=distance),
         )
 
-    def upsert_vectors(self, ids: List[str], point_information: dict):
+    def upsert_vectors(self):
         """
         Upserts vectors to Qdrant. The vectors are processed in batches.
-
-        Args:
-            ids (List[str]): The list of vector ids.
-            point_information (dict): Dictionary containing information about the vectors.
 
         Raises:
             InterruptedError: If the upsert operation is not completed successfully.
         """
-        self.process_in_batches(ids, lambda batch_ids: self.upsert_batch(batch_ids, point_information))
+        self.process_in_batches(
+            self.ids, lambda batch_ids: self.upsert_batch(batch_ids)
+        )  # pylint: disable=unnecessary-lambda
 
-    def upsert_batch(self, batch_ids: List[str], point_information: dict):
+    def upsert_batch(self, batch_ids: List[str]):
         """
         Helper function for upsert_vectors to process each batch of ids.
 
         Args:
             batch_ids (List[str]): The list of vector ids in the current batch.
-            point_information (dict): Dictionary containing information about the vectors.
         """
-        points = {id: point_information["points"][id] for id in batch_ids}
+        points = {id: self.points[id] for id in batch_ids}
         point_ids = []
         for idx, vec in enumerate(points.values()):
             point_id = idx if not str(vec["id"]).isdigit() else int(vec["id"])
