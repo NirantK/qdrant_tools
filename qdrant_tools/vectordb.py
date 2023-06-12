@@ -1,6 +1,6 @@
 import getpass
 import os
-from typing import List, Optional, Callable, Dict
+from typing import Callable, Dict, List, Optional
 
 import pinecone
 from qdrant_client import QdrantClient
@@ -46,9 +46,7 @@ class VectorDatabaseHandler:
     def __init__(self, batch_size: int = 1000):
         self.batch_size = batch_size
 
-    def process_in_batches(
-        self, ids: List[str], processing_function: Callable[[List[str]], None]
-    ):
+    def process_in_batches(self, ids: List[str], processing_function: Callable[[List[str]], None]):
         """
         Process the given ids in batches.
 
@@ -88,14 +86,12 @@ class PineconeExport(VectorDatabaseHandler):
             ids (List[str]): The ids of the vectors to fetch.
 
         Returns:
-            Dict[str, dict]: A dictionary with the fetched vectors, the dimension of the index, and the name of the index.
+            Dict[str, dict]: A dictionary with the fetched vectors, the dimension of the index, and the index name.
         """
         fetched_vectors = {}
         self.process_in_batches(
             ids,
-            lambda batch_ids: fetched_vectors.update(
-                self.index.fetch(ids=batch_ids)["vectors"]
-            ),
+            lambda batch_ids: fetched_vectors.update(self.index.fetch(ids=batch_ids)["vectors"]),
         )
         return {
             "points": fetched_vectors,
@@ -164,9 +160,7 @@ class QdrantImport(VectorDatabaseHandler):
         """
         self.qdrant_client.recreate_collection(
             collection_name=self.index_name,
-            vectors_config=models.VectorParams(
-                size=self.index_dimension, distance=distance
-            ),
+            vectors_config=models.VectorParams(size=self.index_dimension, distance=distance),
         )
 
     def upsert_vectors(self, ids: List[str], point_information: dict):
@@ -180,9 +174,7 @@ class QdrantImport(VectorDatabaseHandler):
         Raises:
             InterruptedError: If the upsert operation is not completed successfully.
         """
-        self.process_in_batches(
-            ids, lambda batch_ids: self.upsert_batch(batch_ids, point_information)
-        )
+        self.process_in_batches(ids, lambda batch_ids: self.upsert_batch(batch_ids, point_information))
 
     def upsert_batch(self, batch_ids: List[str], point_information: dict):
         """
@@ -203,14 +195,10 @@ class QdrantImport(VectorDatabaseHandler):
                 if "text" not in vec["metadata"]
                 else {"text": vec["metadata"]["text"], "metadata": vec["metadata"]}
             )
-            point_ids.append(
-                PointStruct(id=point_id, vector=vec["values"], payload=payload)
-            )
+            point_ids.append(PointStruct(id=point_id, vector=vec["values"], payload=payload))
 
         # Perform the upsert operation
-        operation_info = self.qdrant_client.upsert(
-            collection_name=self.index_name, wait=True, points=point_ids
-        )
+        operation_info = self.qdrant_client.upsert(collection_name=self.index_name, wait=True, points=point_ids)
 
         # Check if the operation was successful
         if operation_info.status != UpdateStatus.COMPLETED:
