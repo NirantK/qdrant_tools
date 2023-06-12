@@ -56,15 +56,15 @@ class PineconeExport:
             dimension (Optional[int], optional): _description_. Defaults to None.
 
         Raises:
-            ValueError: _description_
-            ValueError: _description_
+            ValueError: Index does not exist in Pinecone
+            ValueError: Dimension must be an integer
 
         Returns:
-            _type_: _description_
+            pinecone.Index
         """
         if index_name not in pinecone.list_indexes():
             raise ValueError(f"Index {index_name} does not exist in Pinecone")
-        index = pinecone.Index(index_name=index_name)
+        index = pinecone.GRPCIndex(index_name=index_name)
         dimension = index.describe_index_stats()["dimension"]
         if not isinstance(dimension, int) or dimension is None:
             raise ValueError("Dimension must be an integer")
@@ -96,6 +96,7 @@ class QdrantImport:
     """Import vectors from any VectorDB to Qdrant"""
 
     def __init__(self, mode: QdrantMode = QdrantMode.local, batch_size: int = 1000):
+        self.source_index = None
         if mode == QdrantMode.cloud:
             qdrant_api_keys = APIKeyValidators(["QDRANT_URL", "QDRANT_API_KEY"])
             self.qdrant_url = qdrant_api_keys.get_key("QDRANT_URL")
@@ -109,9 +110,7 @@ class QdrantImport:
             self.qdrant_client = QdrantClient(QdrantMode.local)
         self.batch_size = batch_size
 
-    def create_collection(
-        self, index_name: str, vector_dimension: int, distance=Distance.COSINE
-    ):
+    def create_collection(self, source_index: pinecone.Index, distance=Distance.COSINE):
         """
         Create a new collection in Qdrant
 
@@ -120,6 +119,12 @@ class QdrantImport:
             vector_dimension (int): _description_
             distance (_type_, optional): _description_. Defaults to Distance.COSINE.
         """
+        index_name = source_index.name
+
+        vector_dimension = source_index.describe_index_stats()[
+            "dimension"
+        ]  # Get dimension from existing index
+
         self.qdrant_client.recreate_collection(
             collection_name=index_name,
             vectors_config=models.VectorParams(
