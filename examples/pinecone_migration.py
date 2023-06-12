@@ -10,13 +10,10 @@ source_index = pinecone_export.index
 # Fetch all vector ids from Pinecone
 vector_ids = ["1", "2", "3", "4", "5"]  # Example vector ids
 
-# Fetch vectors from Pinecone and write them to a local file
-points = pinecone_export.fetch_vectors(vector_ids)
-
 # Init Qdrant
-qdrant = QdrantImport(mode=QdrantMode.local)
-qdrant.create_collection(source_index)
-qdrant.upsert_vectors(vector_ids, source_index)
+qdrant = QdrantImport(mode=QdrantMode.local, source_index=source_index)
+qdrant.create_collection()
+qdrant.upsert_vectors(vector_ids)
 
 
 qdrant.qdrant_client.search(
