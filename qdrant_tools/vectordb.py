@@ -1,6 +1,6 @@
 import getpass
 import os
-from typing import List, Optional
+from typing import List, Optional, Callable, Dict
 
 import pinecone
 from qdrant_client import QdrantClient
@@ -9,20 +9,53 @@ from qdrant_client.http.models import Distance, PointStruct, UpdateStatus
 
 
 class APIKeyValidators:
+    """
+    Class to handle API key validation and retrieval.
+
+    Args:
+        keys (List[str]): List of API key names to handle.
+    """
+
     def __init__(self, keys: List[str]):
         self.keys = {key: os.getenv(key) for key in keys}
 
-    def get_key(self, key: str):
+    def get_key(self, key: str) -> str:
+        """
+        Retrieve the value of a specific API key. If the key is not found in the environment variables,
+        prompts the user for input.
+
+        Args:
+            key (str): The name of the API key to retrieve.
+
+        Returns:
+            str: The value of the API key.
+        """
         if self.keys[key] is None:
             self.keys[key] = getpass.getpass(prompt=f"Enter your {key}: ")
         return self.keys[key]
 
 
 class VectorDatabaseHandler:
+    """
+    Base class for handling operations on a vector database.
+
+    Args:
+        batch_size (int, optional): Size of batches for processing. Defaults to 1000.
+    """
+
     def __init__(self, batch_size: int = 1000):
         self.batch_size = batch_size
 
-    def process_in_batches(self, ids: List[str], processing_function):
+    def process_in_batches(
+        self, ids: List[str], processing_function: Callable[[List[str]], None]
+    ):
+        """
+        Process the given ids in batches.
+
+        Args:
+            ids (List[str]): The ids to process.
+            processing_function (Callable[[List[str]], None]): The function to apply to each batch of ids.
+        """
         for i in range(0, len(ids), self.batch_size):
             i_end = min(i + self.batch_size, len(ids))
             batch_ids = ids[i:i_end]
@@ -30,6 +63,14 @@ class VectorDatabaseHandler:
 
 
 class PineconeExport(VectorDatabaseHandler):
+    """
+    Class to handle exporting vectors from Pinecone.
+
+    Args:
+        index_name (str): The name of the Pinecone index to export from.
+        batch_size (int, optional): Size of batches for processing. Defaults to 1000.
+    """
+
     def __init__(self, index_name: str, batch_size: int = 1000):
         super().__init__(batch_size)
         pinecone_keys = ["PINECONE_API_KEY", "PINECONE_ENVIRONMENT"]
@@ -39,7 +80,16 @@ class PineconeExport(VectorDatabaseHandler):
         pinecone.init(api_key=self.api_key, environment=self.environment)
         self.index = self.create_index(index_name)
 
-    def fetch_vectors(self, ids: List[str]) -> dict:
+    def fetch_vectors(self, ids: List[str]) -> Dict[str, dict]:
+        """
+        Fetch vectors from the Pinecone index.
+
+        Args:
+            ids (List[str]): The ids of the vectors to fetch.
+
+        Returns:
+            Dict[str, dict]: A dictionary with the fetched vectors, the dimension of the index, and the name of the index.
+        """
         fetched_vectors = {}
         self.process_in_batches(
             ids,
@@ -53,20 +103,19 @@ class PineconeExport(VectorDatabaseHandler):
             "name": self.index.name,
         }
 
-    def create_index(self, index_name: str, dimension: Optional[int] = None):
+    def create_index(self, index_name: str) -> pinecone.Index:
         """
         Create a Pinecone index object
 
         Args:
-            index_name (str): _description_
-            dimension (Optional[int], optional): _description_. Defaults to None.
+            index_name (str): The name of the index to create.
 
         Raises:
-            ValueError: Index does not exist in Pinecone
-            ValueError: Dimension must be an integer
+            ValueError: If the index does not exist in Pinecone
+            or if the dimension is not an integer.
 
         Returns:
-            pinecone.Index
+            pinecone.Index: The created index.
         """
         if index_name not in pinecone.list_indexes():
             raise ValueError(f"Index {index_name} does not exist in Pinecone")
