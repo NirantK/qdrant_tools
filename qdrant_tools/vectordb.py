@@ -94,10 +94,17 @@ class PineconeExport(VectorDatabaseHandler):
             raise ValueError("Dimension must be an integer")
         return index
 
-    def fetch_vectors(self, ids: List[str]) -> dict[dict, int, str]:
-        """
-        Fetch vectors from Pinecone into a Python object
-        """
+
+class QdrantImport(VectorDatabaseHandler):
+    """
+    Class to handle importing vectors into Qdrant. Inherits from the VectorDatabaseHandler class.
+
+    Args:
+        index_name (str): Name of the index/collection in Qdrant.
+        index_dimension (int): The dimension of the vectors to be inserted.
+        qdrant_client (Optional[QdrantClient]): An instance of QdrantClient. If not provided, a new instance is created.
+        batch_size (int): Size of batches in which vectors are processed. Default is 1000.
+    """
         fetched_vectors = {}
         # Fetch vectors in batches of 1000 as recommended by Pinecone
         for i in range(0, len(ids), self.batch_size):
@@ -130,6 +137,7 @@ class QdrantImport:
         qdrant_client: Optional[QdrantClient] = None,
         batch_size: int = 1000,
     ):
+        super().__init__(batch_size)
         self.index_name = index_name
         self.index_dimension = index_dimension
         if qdrant_client is None:
@@ -156,14 +164,14 @@ class QdrantImport:
 
     def upsert_vectors(self, ids: List[str], point_information: dict):
         """
-        Upsert vectors to Qdrant
+        Upserts vectors to Qdrant. The vectors are processed in batches.
 
         Args:
-            ids (List[str]): _description_
-            index (pinecone.Index): _description_
+            ids (List[str]): The list of vector ids.
+            point_information (dict): Dictionary containing information about the vectors.
 
         Raises:
-            InterruptedError: Status check and raised when status is not completed
+            InterruptedError: If the upsert operation is not completed successfully.
         """
 
         for i in range(0, len(ids), self.batch_size):
@@ -174,7 +182,8 @@ class QdrantImport:
             point_ids = []
             # Convert vector ids to int and add text payload
             for idx, vec in enumerate(points["vectors"].values()):
-                id = idx + i if not str(vec["id"]).isdigit() else int(vec["id"])
+                id = idx if not str(vec["id"]).isdigit() else int(vec["id"])
+                # Create a PointStruct for each vector
                 point_ids.append(
                     PointStruct(
                         id=id,
@@ -186,9 +195,11 @@ class QdrantImport:
                     )
                 )
 
+            # Perform the upsert operation
             operation_info = self.qdrant_client.upsert(
                 collection_name=self.index_name, wait=True, points=point_ids
             )
 
+            # Check if the operation was successful
             if operation_info.status != UpdateStatus.COMPLETED:
                 raise InterruptedError("Upsert failed")
