@@ -8,30 +8,31 @@ pip install qdrant-tools
 
 ## Usage
 
-```
-from qdrant_tools.vectordb import PineconeExport, QdrantImport, QdrantMode
+```python
+from qdrant_tools.vectordb import PineconeExport, QdrantImport
 
 index_name = "hindi-search"  # Existing Pinecone index name
 
 # Init Pinecone
 pinecone_export = PineconeExport(index_name=index_name)
-print(pinecone_export.index.describe_index_stats())
-source_index = pinecone_export.index
 
-# Fetch all vector ids from Pinecone
 vector_ids = ["1", "2", "3", "4", "5"]  # Example vector ids
+points_information = pinecone_export.fetch_vectors(vector_ids)
+
+print(points_information["ids"], points_information["index_dimension"])
 
 # Init Qdrant
-qdrant = QdrantImport(mode=QdrantMode.local, source_index=source_index)
+qdrant = QdrantImport(**points_information)
 qdrant.create_collection()
-qdrant.upsert_vectors(vector_ids)
+qdrant.upsert_vectors()
 
-
-qdrant.qdrant_client.search(
+# Trying it out!
+response = qdrant.qdrant_client.search(
     collection_name=index_name,
     query_vector= # vector to search of same dimension as other vectors,
 )
 
+print(response)
 ```
 
 ## Introduction
