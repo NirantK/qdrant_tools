@@ -6,18 +6,24 @@ index_name = "hindi-search"  # Existing Pinecone index name
 pinecone_export = PineconeExport(index_name=index_name)
 print(pinecone_export.index.describe_index_stats())
 source_index = pinecone_export.index
-# # Fetch all vector ids from Pinecone
+
+# Fetch all vector ids from Pinecone
 vector_ids = ["1", "2", "3", "4", "5"]  # Example vector ids
-# # Fetch vectors from Pinecone and write them to a local file
+
+# Fetch vectors from Pinecone and write them to a local file
 points = pinecone_export.fetch_vectors(vector_ids)
 print(points)
+
 # Init Qdrant
 vector_dimension = source_index.describe_index_stats()[
     "dimension"
 ]  # Get dimension from existing index
 qdrant = QdrantImport(mode=QdrantMode.local)
-qdrant.create_collection(index_name, vector_dimension)
-qdrant.upsert_vectors(index_name, vector_ids, source_index)
+qdrant.create_collection(source_index.name, vector_dimension)
+
+# Now we don't need to pass index_name to upsert_vectors as it gets it from the source_index
+qdrant.upsert_vectors(vector_ids, source_index)
+
 
 qdrant.qdrant_client.search(
     collection_name=index_name,
