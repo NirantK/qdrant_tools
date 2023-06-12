@@ -95,8 +95,14 @@ class QdrantMode:
 class QdrantImport:
     """Import vectors from any VectorDB to Qdrant"""
 
-    def __init__(self, mode: QdrantMode = QdrantMode.local, batch_size: int = 1000):
-        self.source_index = None
+    def __init__(
+        self,
+        source_index: pinecone.Index,
+        mode: QdrantMode = QdrantMode.local,
+        batch_size: int = 1000,
+    ):
+        self.source_index = source_index
+        self.index_name = source_index.name
         if mode == QdrantMode.cloud:
             qdrant_api_keys = APIKeyValidators(["QDRANT_URL", "QDRANT_API_KEY"])
             self.qdrant_url = qdrant_api_keys.get_key("QDRANT_URL")
@@ -110,7 +116,7 @@ class QdrantImport:
             self.qdrant_client = QdrantClient(QdrantMode.local)
         self.batch_size = batch_size
 
-    def create_collection(self, source_index: pinecone.Index, distance=Distance.COSINE):
+    def create_collection(self, distance=Distance.COSINE):
         """
         Create a new collection in Qdrant
 
@@ -119,20 +125,18 @@ class QdrantImport:
             vector_dimension (int): _description_
             distance (_type_, optional): _description_. Defaults to Distance.COSINE.
         """
-        index_name = source_index.name
-
-        vector_dimension = source_index.describe_index_stats()[
+        vector_dimension = self.source_index.describe_index_stats()[
             "dimension"
         ]  # Get dimension from existing index
 
         self.qdrant_client.recreate_collection(
-            collection_name=index_name,
+            collection_name=self.index_name,
             vectors_config=models.VectorParams(
                 size=vector_dimension, distance=distance
             ),
         )
 
-    def upsert_vectors(self, ids: List[str], index: pinecone.Index):
+    def upsert_vectors(self, ids: List[str]):
         """
         Upsert vectors to Qdrant
 
@@ -144,11 +148,10 @@ class QdrantImport:
             InterruptedError: Status check and raised when status is not completed
         """
 
-        index_name = index.name
         for i in range(0, len(ids), self.batch_size):
             i_end = min(i + self.batch_size, len(ids))
             batch_ids = ids[i:i_end]
-            fetched_vectors = index.fetch(ids=batch_ids)
+            fetched_vectors = self.source_index.fetch(ids=batch_ids)
 
             point_ids = []
             # Convert vector ids to int and add text payload
@@ -166,7 +169,7 @@ class QdrantImport:
                 )
 
             operation_info = self.qdrant_client.upsert(
-                collection_name=index_name, wait=True, points=point_ids
+                collection_name=self.index_name, wait=True, points=point_ids
             )
 
             if operation_info.status != UpdateStatus.COMPLETED:
