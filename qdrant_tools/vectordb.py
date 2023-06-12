@@ -9,27 +9,10 @@ from qdrant_client.http.models import Distance, PointStruct, UpdateStatus
 
 
 class APIKeyValidators:
-    """
-    Validate API keys and store them in memory
-
-    Returns:
-       key (str): API key
-    """
-
-    # Add .env support
     def __init__(self, keys: List[str]):
         self.keys = {key: os.getenv(key) for key in keys}
 
     def get_key(self, key: str):
-        """
-        Get API key from environment variables or prompt user for input
-
-        Args:
-            key (str): _description_
-
-        Returns:
-            _type_: _description_
-        """
         if self.keys[key] is None:
             self.keys[key] = getpass.getpass(prompt=f"Enter your {key}: ")
         return self.keys[key]
@@ -53,7 +36,6 @@ class PineconeExport(VectorDatabaseHandler):
         pinecone_api_keys = APIKeyValidators(pinecone_keys)
         self.api_key = pinecone_api_keys.get_key("PINECONE_API_KEY")
         self.environment = pinecone_api_keys.get_key("PINECONE_ENVIRONMENT")
-        self.batch_size = batch_size
         pinecone.init(api_key=self.api_key, environment=self.environment)
         self.index = self.create_index(index_name)
 
@@ -105,30 +87,6 @@ class QdrantImport(VectorDatabaseHandler):
         qdrant_client (Optional[QdrantClient]): An instance of QdrantClient. If not provided, a new instance is created.
         batch_size (int): Size of batches in which vectors are processed. Default is 1000.
     """
-        fetched_vectors = {}
-        # Fetch vectors in batches of 1000 as recommended by Pinecone
-        for i in range(0, len(ids), self.batch_size):
-            i_end = min(i + self.batch_size, len(ids))
-            batch_ids = ids[i:i_end]
-            response = self.index.fetch(ids=batch_ids)
-            fetched_vectors.update(response["vectors"])
-
-        return {
-            "points": fetched_vectors,
-            "dimension": self.index.describe_index_stats()["dimension"],
-            "name": self.index.name,
-        }
-
-
-class QdrantMode:
-    """Enum: Qdrant modes"""
-
-    local = ":memory:"
-    cloud = "cloud"
-
-
-class QdrantImport:
-    """Import vectors from any VectorDB to Qdrant"""
 
     def __init__(
         self,
@@ -141,19 +99,16 @@ class QdrantImport:
         self.index_name = index_name
         self.index_dimension = index_dimension
         if qdrant_client is None:
-            self.qdrant_client = QdrantClient(QdrantMode.local)
+            self.qdrant_client = QdrantClient(":memory:")
         else:
             self.qdrant_client = qdrant_client
-        self.batch_size = batch_size
 
     def create_collection(self, distance=Distance.COSINE):
         """
-        Create a new collection in Qdrant
+        Creates a new collection in Qdrant.
 
         Args:
-            index_name (str): _description_
-            vector_dimension (int): _description_
-            distance (_type_, optional): _description_. Defaults to Distance.COSINE.
+            distance (Distance): The distance metric to be used in the collection. Default is COSINE.
         """
         self.qdrant_client.recreate_collection(
             collection_name=self.index_name,
@@ -173,14 +128,12 @@ class QdrantImport:
         Raises:
             InterruptedError: If the upsert operation is not completed successfully.
         """
-
         for i in range(0, len(ids), self.batch_size):
             i_end = min(i + self.batch_size, len(ids))
             batch_ids = ids[i:i_end]
 
             points = point_information["points"]
             point_ids = []
-            # Convert vector ids to int and add text payload
             for idx, vec in enumerate(points["vectors"].values()):
                 id = idx if not str(vec["id"]).isdigit() else int(vec["id"])
                 # Create a PointStruct for each vector
