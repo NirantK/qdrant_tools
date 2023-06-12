@@ -1,11 +1,10 @@
 from qdrant_tools.vectordb import PineconeExport, QdrantImport
 
 index_name = "hindi-search"  # Existing Pinecone index name
+vector_ids = ["1", "2", "3", "4", "5"]  # Example vector ids
 
 # Init Pinecone
 pinecone_export = PineconeExport(index_name=index_name)
-
-vector_ids = ["1", "2", "3", "4", "5"]  # Example vector ids
 points_information = pinecone_export.fetch_vectors(vector_ids)
 
 print(points_information["ids"], points_information["index_dimension"])
@@ -13,8 +12,10 @@ print(points_information["ids"], points_information["index_dimension"])
 # Init Qdrant
 qdrant = QdrantImport(**points_information)
 qdrant.create_collection()
+print("Starting upsert")
 qdrant.upsert_vectors()
 
+# Testing that out
 response = qdrant.qdrant_client.search(
     collection_name=index_name,
     query_vector=[
