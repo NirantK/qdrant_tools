@@ -79,13 +79,15 @@ class PineconeExport(VectorDatabaseHandler):
 
 class QdrantImport(VectorDatabaseHandler):
     """
-    Class to handle importing vectors into Qdrant. Inherits from the VectorDatabaseHandler class.
+    Class to handle importing vectors into Qdrant.
+    Inherits from the VectorDatabaseHandler class.
 
     Args:
         index_name (str): Name of the index/collection in Qdrant.
         index_dimension (int): The dimension of the vectors to be inserted.
-        qdrant_client (Optional[QdrantClient]): An instance of QdrantClient. If not provided, a new instance is created.
-        batch_size (int): Size of batches in which vectors are processed. Default is 1000.
+        qdrant_client (Optional[QdrantClient]): An instance of QdrantClient.
+        If not provided, a new instance is created.
+        batch_size (int): Size of batches in which vectors are processed.
     """
 
     def __init__(
@@ -93,7 +95,7 @@ class QdrantImport(VectorDatabaseHandler):
         index_name: str,
         index_dimension: int,
         qdrant_client: Optional[QdrantClient] = None,
-        batch_size: int = 1000,
+        batch_size: int = 1024,
     ):
         super().__init__(batch_size)
         self.index_name = index_name
@@ -108,7 +110,8 @@ class QdrantImport(VectorDatabaseHandler):
         Creates a new collection in Qdrant.
 
         Args:
-            distance (Distance): The distance metric to be used in the collection. Default is COSINE.
+            distance (Distance): The distance metric to be used in the collection.
+            Default is COSINE.
         """
         self.qdrant_client.recreate_collection(
             collection_name=self.index_name,
