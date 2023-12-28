@@ -82,7 +82,7 @@ class PineconeExport(VectorDatabaseHandler):
         self.index = pinecone.Index(index_name=index_name)
         self.index_name = index_name
 
-    def fetch_vectors(self, ids: List[str]) -> Dict[str, dict]:
+    def fetch_vectors(self, ids: List[str], namespace: Optional[str] = None) -> Dict[str, dict]:
         """
         Fetch vectors from the Pinecone index.
 
@@ -95,7 +95,7 @@ class PineconeExport(VectorDatabaseHandler):
         fetched_vectors = {}
         self.process_in_batches(
             ids,
-            lambda batch_ids: fetched_vectors.update(self.index.fetch(ids=batch_ids)["vectors"]),
+            lambda batch_ids: fetched_vectors.update(self.index.fetch(ids=batch_ids, namespace=namespace)["vectors"]),
         )
         return {
             "ids": ids,
