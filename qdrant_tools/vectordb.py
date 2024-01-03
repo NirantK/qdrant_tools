@@ -82,7 +82,7 @@ class PineconeExport(VectorDatabaseHandler):
         self.index = pinecone.Index(index_name=index_name)
         self.index_name = index_name
 
-    def fetch_vectors(self, ids: List[str]) -> Dict[str, dict]:
+    def fetch_vectors(self, ids: List[str], namespace: Optional[str] = None) -> Dict[str, dict]:
         """
         Fetch vectors from the Pinecone index.
 
@@ -95,7 +95,7 @@ class PineconeExport(VectorDatabaseHandler):
         fetched_vectors = {}
         self.process_in_batches(
             ids,
-            lambda batch_ids: fetched_vectors.update(self.index.fetch(ids=batch_ids)["vectors"]),
+            lambda batch_ids: fetched_vectors.update(self.index.fetch(ids=batch_ids, namespace=namespace)["vectors"]),
         )
         return {
             "ids": ids,
@@ -127,6 +127,7 @@ class QdrantImport(VectorDatabaseHandler):
         qdrant_client: Optional[QdrantClient] = None,
         batch_size: int = 1024,
     ):
+        self.upsert_counter = 0
         super().__init__(batch_size)
         self.index_name = index_name
         self.index_dimension = index_dimension
@@ -160,6 +161,7 @@ class QdrantImport(VectorDatabaseHandler):
         self.process_in_batches(
             self.ids, lambda batch_ids: self.upsert_batch(batch_ids)
         )  # pylint: disable=unnecessary-lambda
+        self.upsert_counter = 0
 
     def upsert_batch(self, batch_ids: List[str]):
         """
@@ -171,7 +173,7 @@ class QdrantImport(VectorDatabaseHandler):
         points = {id: self.points[id] for id in batch_ids}
         point_ids = []
         for idx, vec in enumerate(points.values()):
-            point_id = idx if not str(vec["id"]).isdigit() else int(vec["id"])
+            point_id = self.upsert_counter if not str(vec["id"]).isdigit() else int(vec["id"])
             # Create a PointStruct for each vector
             # Use 'text' if present in 'metadata', else use the entire 'metadata'
             payload = (
@@ -180,6 +182,7 @@ class QdrantImport(VectorDatabaseHandler):
                 else {"text": vec["metadata"]["text"], "metadata": vec["metadata"]}
             )
             point_ids.append(PointStruct(id=point_id, vector=vec["values"], payload=payload))
+            self.upsert_counter += 1
 
         # Perform the upsert operation
         operation_info = self.qdrant_client.upsert(collection_name=self.index_name, wait=True, points=point_ids)
